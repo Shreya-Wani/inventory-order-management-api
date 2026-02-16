@@ -89,3 +89,32 @@ export const deleteProduct = asyncHandler(async (req, res) => {
     new ApiResponse(200, null, "Product deleted successfully")
   );
 });
+
+//add stock
+export const addStock = asyncHandler(async (req, res) => {
+  const { quantity } = req.body;
+
+  if (!quantity || quantity <= 0) {
+    throw new ApiError(400, "Stock quantity must be greater than 0");
+  }
+
+  const product = await Product.findById(req.params.id);
+
+  if (!product) {
+    throw new ApiError(404, "Product not found");
+  }
+
+  // Ownership check
+  if (product.shopkeeper.toString() !== req.user._id.toString()) {
+    throw new ApiError(403, "You can modify only your own products");
+  }
+
+  product.stock += quantity;
+
+  await product.save();
+
+  return res.status(200).json(
+    new ApiResponse(200, product, "Stock updated successfully")
+  );
+});
+

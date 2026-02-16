@@ -5,6 +5,7 @@ import {
     getSingleProduct,
     updateProduct,
     deleteProduct,
+    addStock,
 } from "../controllers/product.controller.js";
 import { protect, authorizeRoles } from "../middlewares/auth.middleware.js";
 
@@ -17,5 +18,6 @@ router.get("/", getAllProducts);
 router.get("/:id", getSingleProduct);
 router.put("/:id", protect, authorizeRoles("shopkeeper"), updateProduct);
 router.delete("/:id", protect, authorizeRoles("shopkeeper"), deleteProduct);
+router.patch("/:id/add-stock", protect, authorizeRoles("shopkeeper"), addStock);
 
 export default router;

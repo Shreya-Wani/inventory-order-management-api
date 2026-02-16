@@ -5,6 +5,7 @@ import cors from "cors";
 import globalErrorHandler from "./src/middlewares/errorMiddleware.js";
 import authRoutes from "./src/routes/auth.route.js";
 import productRoutes from "./src/routes/product.route.js";
+import orderRoutes from "./src/routes/order.route.js";
 
 dotenv.config();
 
@@ -15,6 +16,7 @@ app.use(cors());
 app.use(globalErrorHandler);
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/products", productRoutes);
+app.use("/api/v1/orders", orderRoutes);
 
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {
