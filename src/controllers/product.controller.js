@@ -47,3 +47,45 @@ export const getSingleProduct = asyncHandler(async (req, res) => {
     .status(200)
     .json(new ApiResponse(200, product, "Product fetched successfully"));
 });
+
+//update product
+export const updateProduct = asyncHandler(async (req, res) => {
+  const product = await Product.findById(req.params.id);
+
+  if (!product) {
+    throw new ApiError(404, "Product not found");
+  }
+
+  if (product.shopkeeper.toString() !== req.user._id.toString()) {
+    throw new ApiError(403, "You can update only your own products");
+  }
+
+  const updatedProduct = await Product.findByIdAndUpdate(
+    req.params.id,
+    req.body,
+    { new: true, runValidators: true }
+  );
+
+  return res.status(200).json(
+    new ApiResponse(200, updatedProduct, "Product updated successfully")
+  );
+});
+
+// 🗑 Delete Product (Shopkeeper Only + Ownership Check)
+export const deleteProduct = asyncHandler(async (req, res) => {
+  const product = await Product.findById(req.params.id);
+
+  if (!product) {
+    throw new ApiError(404, "Product not found");
+  }
+
+  if (product.shopkeeper.toString() !== req.user._id.toString()) {
+    throw new ApiError(403, "You can delete only your own products");
+  }
+
+  await product.deleteOne();
+
+  return res.status(200).json(
+    new ApiResponse(200, null, "Product deleted successfully")
+  );
+});
