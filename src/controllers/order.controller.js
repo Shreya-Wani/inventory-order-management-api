@@ -10,71 +10,71 @@ import { createOrderSchema } from "../validations/order.validation.js";
 // Place Order (Customer Only + Transaction)
 export const createOrder = asyncHandler(async (req, res) => {
 
-    const { error } = createOrderSchema.validate(req.body);
-    if (error) {
-        throw new ApiError(400, error.details[0].message);
-    }
+  const { error } = createOrderSchema.validate(req.body);
+  if (error) {
+    throw new ApiError(400, error.details[0].message);
+  }
 
-    const { items } = req.body;
+  const { items } = req.body;
 
-    const session = await mongoose.startSession();
-    session.startTransaction();
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
-    try {
-        let totalAmount = 0;
-        const orderItems = [];
+  try {
+    let totalAmount = 0;
+    const orderItems = [];
 
-        for (const item of items) {
+    for (const item of items) {
 
-            const product = await Product.findById(item.productId).session(session);
+      const product = await Product.findById(item.productId).session(session);
 
-            if (!product) {
-                throw new ApiError(404, "Product not found");
-            }
+      if (!product) {
+        throw new ApiError(404, "Product not found");
+      }
 
-            if (product.stock < item.quantity) {
-                throw new ApiError(
-                    400,
-                    `Insufficient stock for product: ${product.name}`
-                );
-            }
-
-            // Deduct stock
-            product.stock -= item.quantity;
-            await product.save({ session });
-
-            totalAmount += product.price * item.quantity;
-
-            orderItems.push({
-                product: product._id,
-                quantity: item.quantity,
-                priceAtPurchase: product.price,
-            });
-        }
-
-        const order = await Order.create(
-            [
-                {
-                    customer: req.user._id,
-                    items: orderItems,
-                    totalAmount,
-                },
-            ],
-            { session }
+      if (product.stock < item.quantity) {
+        throw new ApiError(
+          400,
+          `Insufficient stock for product: ${product.name}`
         );
+      }
 
-        await session.commitTransaction();
-        session.endSession();
+      // Deduct stock
+      product.stock -= item.quantity;
+      await product.save({ session });
 
-        return res
-            .status(201)
-            .json(new ApiResponse(201, order[0], "Order placed successfully"));
+      totalAmount += product.price * item.quantity;
 
-    } catch (err) {
-        await session.abortTransaction();
-        session.endSession();
-        throw err;
+      orderItems.push({
+        product: product._id,
+        quantity: item.quantity,
+        priceAtPurchase: product.price,
+      });
     }
+
+    const order = await Order.create(
+      [
+        {
+          customer: req.user._id,
+          items: orderItems,
+          totalAmount,
+        },
+      ],
+      { session }
+    );
+
+    await session.commitTransaction();
+    session.endSession();
+
+    return res
+      .status(201)
+      .json(new ApiResponse(201, order[0], "Order placed successfully"));
+
+  } catch (err) {
+    await session.abortTransaction();
+    session.endSession();
+    throw err;
+  }
 });
 
 //Get Orders
@@ -141,6 +141,14 @@ export const markOrderCompleted = asyncHandler(async (req, res) => {
 
   if (req.user.role !== "shopkeeper") {
     throw new ApiError(403, "Only shopkeeper can complete orders");
+  }
+
+  const hasProduct = order.items.some(item =>
+    item.product.shopkeeper.toString() === req.user._id.toString()
+  );
+
+  if (!hasProduct) {
+    throw new ApiError(403, "You cannot complete this order");
   }
 
   order.status = "completed";
