@@ -2,6 +2,8 @@ import cron from "node-cron";
 import mongoose from "mongoose";
 import Batch from "../models/batch.model.js";
 import Product from "../models/product.model.js";
+import sendEmail from "../utils/sendEmail.js";
+import User from "../models/user.model.js";
 
 const runExpiryJob = () => {
 
@@ -12,6 +14,8 @@ const runExpiryJob = () => {
 
         const session = await mongoose.startSession();
         session.startTransaction();
+
+        const emailsToSend = [];
 
         try {
 
@@ -25,7 +29,7 @@ const runExpiryJob = () => {
 
             for (const batch of expiredBatches) {
 
-                const expiredQty = batch.Quntity;
+                const expiredQty = batch.quantity;
 
                 //mark batch expired
                 batch.isExpired = true;
@@ -46,15 +50,42 @@ const runExpiryJob = () => {
                 console.log(
                     `Batch expired: Product ${product?.name}, Quantity ${expiredQty}`
                 );
+
+                // Fetch shopkeeper
+                const shopkeeper = await User.findById(batch.shopkeeper).session(session);
+
+                if (shopkeeper) {
+                    emailsToSend.push({
+                        to: shopkeeper.email,
+                        subject: "Batch Expiry Notification",
+                        text: `
+                        Product: ${product?.name}
+                        Expired Quantity: ${expiredQty}
+                        Expiry Date: ${batch.expiryDate.toDateString()}
+                        Remaining Product Stock: ${product?.stock}
+                        `,
+                    });
+                }
             }
 
             await session.commitTransaction();
             session.endSession();
 
-            console.log("Expiry cron completed.");
+            console.log("Expiry cron completed. Sending emails...");
+
+            for (const email of emailsToSend) {
+                try {
+                    await sendEmail(email);
+                } catch (emailError) {
+                    console.error("Email sending failed:", emailError.message);
+                }
+            }
+
         } catch (error) {
+
             await session.abortTransaction();
             session.endSession();
+            
             console.error("Expiry cron failed:", error.message);
         }
     });
