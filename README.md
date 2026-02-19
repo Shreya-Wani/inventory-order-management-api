@@ -1,53 +1,25 @@
-# 🛒 Role-Based Shop API
+# 🛒 Inventory & Order Management API
 
-A role-based REST API built using Node.js, Express, and MongoDB where:
-
-- 🏪 Shopkeepers manage products and inventory  
-- 🛍 Customers place orders  
-- 📦 Stock updates automatically using MongoDB transactions  
-- 🔐 JWT authentication secures protected routes  
+A role-based REST API for inventory and order management built with **Node.js**, **Express**, and **MongoDB**. Features batch-level stock tracking with expiry management, FIFO order fulfillment, automated cron jobs, and email notifications.
 
 ---
 
-## 🚀 Features
+## ✨ Features
 
-### 🔐 Authentication
-- User Registration (Shopkeeper / Customer)
-- User Login
-- JWT-based protected routes
-- Password hashing using bcrypt
-
-### 📦 Product Management (Shopkeeper Only)
-- Add new product
-- View all products
-- View single product
-- Update product
-- Delete product
-- Add stock quantity
-
-### 🛒 Order Management
-- Place order with multiple products (Customer only)
-- View orders (role-based access)
-- View single order
-- Mark order as completed (Shopkeeper only)
-
-### 📊 Stock Logic
-- Stock increases when shopkeeper adds inventory
-- Stock decreases when customer places order
-- Prevents order if stock is insufficient
-- Uses MongoDB transactions for atomic updates
+- **JWT Authentication** — Register, login, role-based access (Shopkeeper / Customer)
+- **Product CRUD** — Shopkeepers manage their own products and stock
+- **Batch Management** — Create batches with expiry dates; stock updates atomically via MongoDB transactions
+- **FIFO Order Fulfillment** — Orders consume stock from earliest-expiring batches first
+- **Automated Expiry** — Daily cron job marks expired batches, deducts stock, and emails shopkeepers
+- **Push Notifications** — Firebase Admin SDK (FCM) token management
+- **Input Validation** — Joi schemas on all request bodies
+- **Centralized Error Handling** — Consistent `ApiError` / `ApiResponse` pattern
 
 ---
 
 ## 🏗 Tech Stack
 
-- Node.js
-- Express.js
-- MongoDB + Mongoose
-- JWT Authentication
-- Joi Validation
-- MVC Architecture
-- MongoDB Transactions
+Node.js (ES Modules) · Express v5 · MongoDB + Mongoose · JWT + bcryptjs · Joi · node-cron · Nodemailer · Firebase Admin SDK
 
 ---
 
@@ -55,119 +27,106 @@ A role-based REST API built using Node.js, Express, and MongoDB where:
 
 ```
 src/
-│
-├── config/
-├── controllers/
-├── middlewares/
-├── models/
-├── routes/
-├── validations/
-└── utils/
+├── config/          # DB connection, Firebase init
+├── controllers/     # Auth, Product, Order, Batch logic
+├── models/          # User, Product, Order, Batch schemas
+├── routes/          # Route definitions
+├── middlewares/     # JWT auth + global error handler
+├── validations/     # Joi validation schemas
+├── utils/           # ApiError, ApiResponse, asyncHandler, sendEmail
+└── cron/            # Daily batch expiry job
 ```
 
 ---
 
-## ⚙️ Installation & Setup
-
-### 1️⃣ Clone Repository
+## ⚙️ Setup
 
 ```bash
-git clone https://github.com/Shreya-Wani/inventory-order-management-api
-cd role-based-shop-api
-```
-
-### 2️⃣ Install Dependencies
-
-```bash
+git clone https://github.com/Shreya-Wani/inventory-order-management-api.git
+cd inventory-order-management-api
 npm install
 ```
 
-### 3️⃣ Setup Environment Variables
+Create a `.env` file:
 
-Create a `.env` file in root:
-
-```
+```env
 PORT=5000
-MONGO_URI=mongodb://127.0.0.1:27017/roleBasedShopDB
-JWT_SECRET=your_secret_key
+MONGO_URI=mongodb://127.0.0.1:27017/inventoryOrderDB
+JWT_SECRET=your_jwt_secret_key
+EMAIL_USER=your_email@gmail.com
+EMAIL_PASS=your_app_password
 ```
 
-### 4️⃣ Run Server
+For push notifications, place your Firebase service account JSON at `src/config/firebaseServiceAccount.json`.
 
 ```bash
-npm run dev
-```
-
-Server will run on:
-
-```
-http://localhost:5000
+npm run dev    # Development (hot-reload)
+npm start      # Production
 ```
 
 ---
 
-## 🔐 API Endpoints
+## 🔗 API Endpoints
 
-### 🧾 Auth Routes
+> **Base URL:** `/api/v1`
 
-| Method | Endpoint | Description |
-|--------|----------|------------|
-| POST | /api/auth/register | Register user |
-| POST | /api/auth/login | Login user |
+### Auth — `/auth`
 
----
+| Method | Endpoint | Access | Description |
+|--------|----------|--------|-------------|
+| `POST` | `/register` | Public | Register user |
+| `POST` | `/login` | Public | Login & get JWT |
+| `GET` | `/profile` | Protected | Get current user |
+| `PUT` | `/fcm-token` | Protected | Update FCM token |
 
-### 📦 Product Routes (Shopkeeper Only)
+### Products — `/products`
 
-| Method | Endpoint | Description |
-|--------|----------|------------|
-| POST | /api/products | Add product |
-| GET | /api/products | Get all products |
-| GET | /api/products/:id | Get single product |
-| PUT | /api/products/:id | Update product |
-| DELETE | /api/products/:id | Delete product |
-| PATCH | /api/products/:id/add-stock | Add stock |
+| Method | Endpoint | Access | Description |
+|--------|----------|--------|-------------|
+| `POST` | `/` | Shopkeeper | Create product |
+| `GET` | `/` | Public | List all products |
+| `GET` | `/:id` | Public | Get single product |
+| `PUT` | `/:id` | Shopkeeper | Update product |
+| `DELETE` | `/:id` | Shopkeeper | Delete product |
+| `PATCH` | `/:id/add-stock` | Shopkeeper | Add stock |
 
----
+### Batches — `/batches`
 
-### 🛒 Order Routes
+| Method | Endpoint | Access | Description |
+|--------|----------|--------|-------------|
+| `POST` | `/` | Shopkeeper | Create batch with expiry |
 
-| Method | Endpoint | Description |
-|--------|----------|------------|
-| POST | /api/orders | Place order (Customer) |
-| GET | /api/orders | View orders |
-| GET | /api/orders/:id | View single order |
-| PATCH | /api/orders/:id/complete | Mark as completed (Shopkeeper) |
+### Orders — `/orders`
 
----
-
-## 🔒 Role-Based Access Rules
-
-- Only shopkeepers can manage products
-- Only customers can place orders
-- Shopkeepers can manage only their own products
-- Customers can view only their own orders
-- Stock updates automatically during order creation
+| Method | Endpoint | Access | Description |
+|--------|----------|--------|-------------|
+| `POST` | `/` | Customer | Place order |
+| `GET` | `/` | Protected | Get orders (role-based) |
+| `GET` | `/:id` | Protected | Get single order |
+| `PATCH` | `/:id/complete` | Shopkeeper | Mark completed |
 
 ---
 
-## 🧠 Business Logic Highlights
+## 🔒 Access Control
 
-- Uses MongoDB transactions for order creation
-- Validates stock before placing order
-- Prevents negative inventory
-- Implements centralized error handling
-- Proper HTTP status codes and structured responses
+| Action | Shopkeeper | Customer |
+|--------|:----------:|:--------:|
+| Manage products & batches | ✅ | ❌ |
+| Place orders | ❌ | ✅ |
+| View orders | ✅ *(own products)* | ✅ *(own orders)* |
+| Complete orders | ✅ | ❌ |
+| Receive expiry alerts | ✅ | ❌ |
 
 ---
 
-## 📌 Sample Response Format
+## 📌 Response Format
 
 ```json
 {
-  "success": true,
+  "statusCode": 201,
+  "data": { ... },
   "message": "Product created successfully",
-  "data": {}
+  "success": true
 }
 ```
 
@@ -175,16 +134,13 @@ http://localhost:5000
 
 ## 🧪 Testing
 
-You can test all APIs using:
-- Postman
-- Thunder Client
-- Insomnia
+Use [Postman](https://www.postman.com/), [Thunder Client](https://www.thunderclient.com/), or [Insomnia](https://insomnia.rest/) to test the API.
 
 ---
 
 ## 👩‍💻 Author
 
-Shreya Wani  
-Backend Developer | Node.js | REST APIs | MongoDB  
+**Shreya Wani**
+Backend Developer | Node.js | REST APIs | MongoDB
 
 ---
