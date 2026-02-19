@@ -94,3 +94,26 @@ export const loginUser = asyncHandler(async (req, res) => {
     )
   );
 });
+
+// Update FCM Token
+export const updateFcmToken = asyncHandler(async (req, res) => {
+
+  const { fcmToken } = req.body;
+
+  if (!fcmToken) {
+    throw new ApiError(400, "FCM token is required");
+  }
+
+  const user = await User.findById(req.user._id);
+
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  user.fcmToken = fcmToken;
+  await user.save();
+
+  return res.status(200).json(
+    new ApiResponse(200, null, "FCM token updated successfully")
+  );
+});
