@@ -39,3 +39,6 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+#firebase api json file
+firebaseServiceAccount.json
