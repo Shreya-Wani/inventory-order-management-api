@@ -7,6 +7,7 @@ import authRoutes from "./src/routes/auth.route.js";
 import productRoutes from "./src/routes/product.route.js";
 import orderRoutes from "./src/routes/order.route.js";
 import batchRoutes from "./src/routes/batch.route.js";
+import runExpiryJob from "./src/cron/expiry.cron.js";
 
 dotenv.config();
 
@@ -23,6 +24,9 @@ app.use("/api/v1/batches", batchRoutes);
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {
     console.log("MongoDB Connected");
+
+    runExpiryJob();
+    
     app.listen(process.env.PORT, () => {
       console.log(`Server running on port ${process.env.PORT}`);
     });
