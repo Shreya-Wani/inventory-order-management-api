@@ -5,7 +5,7 @@ import asyncHandler from "../utils/asyncHandler.js";
 import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import { createOrderSchema } from "../validations/order.validation.js";
-
+import Batch from "../models/batch.model.js";
 
 // Place Order (Customer Only + Transaction)
 export const createOrder = asyncHandler(async (req, res) => {
@@ -32,14 +32,49 @@ export const createOrder = asyncHandler(async (req, res) => {
         throw new ApiError(404, "Product not found");
       }
 
-      if (product.stock < item.quantity) {
+      // Fetch non-expired batches sorted by expiry (FIFO by expiry)
+      const batches = await Batch.find({
+        product: item.productId,
+        expiryDate: { $gte: new Date() },
+        quantiy: { $gt: 0 },
+      })
+        .sort({ expiryDate: 1 })
+        .session(session);
+
+      if (!batches.length) {
+        throw new ApiError(400, `No available stock for product: ${product.name}`);
+      }
+
+      let remainingQty = item.quantity;
+
+      //first check total available in batches
+      const totalBatchStock = batches.reduce(
+        (sum, batch) => sum + batch.quantity, 0
+      );
+
+      if (totalBatchStock < item.quantity) {
         throw new ApiError(
           400,
           `Insufficient stock for product: ${product.name}`
         );
       }
 
-      // Deduct stock
+      //Deduct from batches FIFO 
+      for (const batch of batches) {
+
+        if (batch.quantity >= remainingQty) {
+          batch.quantity -= remainingQty;
+          await batch.save({ session });
+          remainingQty = 0;
+          break;
+        } else {
+          remainingQty -= batch.quantity;
+          batch.quantity = 0;
+          await batch.save({ session });
+        }
+      }
+
+      //update product total stock
       product.stock -= item.quantity;
       await product.save({ session });
 
@@ -158,4 +193,3 @@ export const markOrderCompleted = asyncHandler(async (req, res) => {
     .status(200)
     .json(new ApiResponse(200, order, "Order marked as completed"));
 });
-
