@@ -4,6 +4,7 @@ import Batch from "../models/batch.model.js";
 import Product from "../models/product.model.js";
 import sendEmail from "../utils/sendEmail.js";
 import User from "../models/user.model.js";
+import expiryEmailTemplate from "../templates/expiryEmail.template.js";
 
 const runExpiryJob = () => {
 
@@ -58,12 +59,10 @@ const runExpiryJob = () => {
                     emailsToSend.push({
                         to: shopkeeper.email,
                         subject: "Batch Expiry Notification",
-                        text: `
-                        Product: ${product?.name}
-                        Expired Quantity: ${expiredQty}
-                        Expiry Date: ${batch.expiryDate.toDateString()}
-                        Remaining Product Stock: ${product?.stock}
-                        `,
+                        productName: product?.name,
+                        expiredQty,
+                        expiryDate: batch.expiryDate,
+                        remainingStock: product?.stock,
                     });
                 }
             }
@@ -73,9 +72,24 @@ const runExpiryJob = () => {
 
             console.log("Expiry cron completed. Sending emails...");
 
-            for (const email of emailsToSend) {
+            for (const data of emailsToSend) {
                 try {
-                    await sendEmail(email);
+
+                    const generatedHtml = expiryEmailTemplate({
+                        productName: data.productName,
+                        expiredQty: data.expiredQty,
+                        expiryDate: new Date(data.expiryDate),
+                        remainingStock: data.remainingStock,
+                    });
+
+                    console.log("Generated HTML:", generatedHtml); 
+
+                    await sendEmail({
+                        to: data.to,
+                        subject: data.subject,
+                        html: generatedHtml,
+                    });
+
                 } catch (emailError) {
                     console.error("Email sending failed:", emailError.message);
                 }
@@ -85,7 +99,7 @@ const runExpiryJob = () => {
 
             await session.abortTransaction();
             session.endSession();
-            
+
             console.error("Expiry cron failed:", error.message);
         }
     });

@@ -5,7 +5,7 @@ const expiryEmailTemplate = ({ productName, expiredQty, expiryDate, remainingSto
 
       <p><strong>Product:</strong> ${productName}</p>
       <p><strong>Expired Quantity:</strong> ${expiredQty}</p>
-      <p><strong>Expiry Date:</strong> ${expiryDate.toDateString()}</p>
+      <p><strong>Expiry Date:</strong> ${new Date(expiryDate).toDateString()}</p>
       <p><strong>Remaining Stock:</strong> ${remainingStock}</p>
 
       <hr />
