@@ -1,6 +1,7 @@
 # 🛒 Inventory & Order Management API
 
-A role-based REST API for inventory and order management built with **Node.js**, **Express**, and **MongoDB**. Features batch-level stock tracking with expiry management, FIFO order fulfillment, automated cron jobs, and email notifications.
+A role-based REST API for inventory and order management built with **Node.js**, **Express v5**, and **MongoDB**.  
+Features batch-level stock tracking with expiry management, FIFO order fulfillment, automated cron jobs, and email notifications.
 
 ---
 
@@ -34,6 +35,7 @@ src/
 ├── middlewares/     # JWT auth + global error handler
 ├── validations/     # Joi validation schemas
 ├── utils/           # ApiError, ApiResponse, asyncHandler, sendEmail
+├── templates/       # HTML email templates (expiry alerts)
 └── cron/            # Daily batch expiry job
 ```
 
@@ -100,7 +102,7 @@ npm start      # Production
 
 | Method | Endpoint | Access | Description |
 |--------|----------|--------|-------------|
-| `POST` | `/` | Customer | Place order |
+| `POST` | `/` | Customer | Place order (FIFO stock deduction) |
 | `GET` | `/` | Protected | Get orders (role-based) |
 | `GET` | `/:id` | Protected | Get single order |
 | `PATCH` | `/:id/complete` | Shopkeeper | Mark completed |
@@ -119,7 +121,25 @@ npm start      # Production
 
 ---
 
-## 📌 Response Format
+## � Nodemailer — Batch Expiry Email Alerts
+
+A **daily cron job** (`node-cron`, runs at midnight) automatically handles expired batches inside a **MongoDB transaction**:
+
+1. Finds all non-expired batches where `expiryDate < today`
+2. Marks them expired, zeros out quantity, and deducts stock from the parent product
+3. Commits the transaction
+4. Sends an **HTML email** to each affected shopkeeper via **Nodemailer** with:
+   - Product name
+   - Expired quantity
+   - Expiry date
+   - Remaining stock
+
+> **Config:** Set `EMAIL_USER` and `EMAIL_PASS` (Gmail App Password) in your `.env` file.  
+> **Template:** `src/templates/expiryEmail.template.js`
+
+---
+
+## �📌 Response Format
 
 ```json
 {
@@ -140,7 +160,7 @@ Use [Postman](https://www.postman.com/), [Thunder Client](https://www.thundercli
 
 ## 👩‍💻 Author
 
-**Shreya Wani**
+**Shreya Wani**  
 Backend Developer | Node.js | REST APIs | MongoDB
 
 ---
