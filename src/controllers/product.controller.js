@@ -28,11 +28,38 @@ export const createProduct = asyncHandler(async (req, res) => {
 
 // Get All Products
 export const getAllProducts = asyncHandler(async (req, res) => {
-  const products = await Product.find({
-    isActive: true,
-    isDelete: false,
-  }).populate("shopkeeper", "name email");
-
+  const products = await Product.aggregate([
+    {
+      $match: {
+        isActive: true,
+        isDelete: false,
+      }
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "shopkeeper",
+        foreignField: "_id",
+        as: "shopkeeper"
+      }
+    },
+    {
+      $unwind: "$shopkeeper"
+    },
+    {
+      $project: {
+        name: 1,
+        description: 1,
+        price: 1,
+        stock: 1,
+        createdAt: 1,
+        updatedAt: 1,
+        "shopkeeper._id": 1,
+        "shopkeeper.name": 1,
+        "shopkeeper.email": 1
+      }
+    }
+  ]);
   return res
     .status(200)
     .json(new ApiResponse(200, products, "Products fetched successfully"));
