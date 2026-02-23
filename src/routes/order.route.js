@@ -1,5 +1,5 @@
 import express from "express";
-import { createOrder, getOrders, getSingleOrder, markOrderCompleted } from "../controllers/order.controller.js";
+import { createOrder, getOrders, getSingleOrder, markOrderCompleted, cancelOrder } from "../controllers/order.controller.js";
 import { protect, authorizeRoles } from "../middlewares/auth.middleware.js";
 
 const router = express.Router();
@@ -16,5 +16,7 @@ router.patch(
   authorizeRoles("shopkeeper"),
   markOrderCompleted
 );
+
+router.patch("/cancel/:id", protect, cancelOrder);
 
 export default router;

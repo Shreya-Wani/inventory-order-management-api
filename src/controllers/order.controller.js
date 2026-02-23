@@ -36,7 +36,7 @@ export const createOrder = asyncHandler(async (req, res) => {
       const batches = await Batch.find({
         product: item.productId,
         expiryDate: { $gte: new Date() },
-        quantiy: { $gt: 0 },
+        quantity: { $gt: 0 },
       })
         .sort({ expiryDate: 1 })
         .session(session);
@@ -119,13 +119,20 @@ export const getOrders = asyncHandler(async (req, res) => {
 
   if (req.user.role === "customer") {
     // Customer sees only their orders
-    orders = await Order.find({ customer: req.user._id })
+    orders = await Order.find({
+      customer: req.user._id,
+      isActive: true,
+      isDelete: false,
+    })
       .populate("items.product")
       .sort({ createdAt: -1 });
 
   } else if (req.user.role === "shopkeeper") {
     // Shopkeeper sees orders containing their products
-    orders = await Order.find()
+    orders = await Order.find({
+      isActive: true,
+      isDelete: false,
+    })
       .populate("items.product")
       .sort({ createdAt: -1 });
 
@@ -144,7 +151,11 @@ export const getOrders = asyncHandler(async (req, res) => {
 //get single order
 export const getSingleOrder = asyncHandler(async (req, res) => {
 
-  const order = await Order.findById(req.params.id)
+  const order = await Order.findOne({
+    _id: req.params.id,
+    isActive: true,
+    isDelete: false,
+  })
     .populate("items.product");
 
   if (!order) {
@@ -167,7 +178,11 @@ export const getSingleOrder = asyncHandler(async (req, res) => {
 //mark order as completed
 export const markOrderCompleted = asyncHandler(async (req, res) => {
 
-  const order = await Order.findById(req.params.id)
+  const order = await Order.findOne({
+    _id: req.params.id,
+    isActive: true,
+    isDelete: false,
+  })
     .populate("items.product");
 
   if (!order) {
@@ -192,4 +207,78 @@ export const markOrderCompleted = asyncHandler(async (req, res) => {
   return res
     .status(200)
     .json(new ApiResponse(200, order, "Order marked as completed"));
+});
+
+// Cancel Order (Customer Only + Restore Stock)
+export const cancelOrder = asyncHandler(async (req, res) => {
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+
+    const order = await Order.findById(req.params.id)
+      .populate("items.product")
+      .session(session);
+
+    if (!order) {
+      throw new ApiError(404, "Order not found");
+    }
+
+    // Only customer can cancel their own order
+    if (
+      req.user.role !== "customer" ||
+      order.customer.toString() !== req.user._id.toString()
+    ) {
+      throw new ApiError(403, "Access denied");
+    }
+
+    if (order.status !== "pending") {
+      throw new ApiError(400, "Only pending orders can be cancelled");
+    }
+
+    // 🔥 Restore stock
+    for (const item of order.items) {
+
+      const product = await Product.findById(item.product._id).session(session);
+
+      if (!product) {
+        throw new ApiError(404, "Product not found");
+      }
+
+      // Restore product stock
+      product.stock += item.quantity;
+      await product.save({ session });
+
+      // Restore batches (add back to earliest non-expired batch)
+      const batches = await Batch.find({
+        product: product._id,
+      })
+        .sort({ expiryDate: 1 })
+        .session(session);
+
+      let remainingQty = item.quantity;
+
+      for (const batch of batches) {
+        batch.quantity += remainingQty;
+        await batch.save({ session });
+        break; // simple restore logic
+      }
+    }
+
+    order.status = "cancelled";
+    await order.save({ session });
+
+    await session.commitTransaction();
+    session.endSession();
+
+    return res
+      .status(200)
+      .json(new ApiResponse(200, order, "Order cancelled successfully"));
+
+  } catch (err) {
+    await session.abortTransaction();
+    session.endSession();
+    throw err;
+  }
 });
