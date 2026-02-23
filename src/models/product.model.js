@@ -30,6 +30,16 @@ const productSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+
+    isActive: {
+      type: Boolean,
+      default: true
+    },
+    
+    isDelete: {
+      type: Boolean,
+      default: false
+    }
   },
   { timestamps: true }
 );

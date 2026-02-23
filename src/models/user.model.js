@@ -26,6 +26,16 @@ const userSchema = new mongoose.Schema({
       enum: ["shopkeeper", "customer"],
       required: [true, "Role is required"],
     },
+
+    isActive: {
+      type: Boolean,
+      default: true
+    },
+
+    isDelete: {
+      type: Boolean,
+      default: false
+    },
   },
   { timestamps: true }
 )

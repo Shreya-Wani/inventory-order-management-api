@@ -71,7 +71,7 @@ export const updateProduct = asyncHandler(async (req, res) => {
   );
 });
 
-// 🗑 Delete Product (Shopkeeper Only + Ownership Check)
+// Delete Product (Shopkeeper Only + Ownership Check)
 export const deleteProduct = asyncHandler(async (req, res) => {
   const product = await Product.findById(req.params.id);
 
@@ -83,7 +83,10 @@ export const deleteProduct = asyncHandler(async (req, res) => {
     throw new ApiError(403, "You can delete only your own products");
   }
 
-  await product.deleteOne();
+  product.isActive = false;
+  product.isDelete = true;
+
+  await product.save();
 
   return res.status(200).json(
     new ApiResponse(200, null, "Product deleted successfully")
