@@ -28,6 +28,18 @@ export const createProduct = asyncHandler(async (req, res) => {
 
 // Get All Products
 export const getAllProducts = asyncHandler(async (req, res) => {
+
+  const {
+    page = 1,
+    limit = 5,
+    sortKey = "createdAt",
+    sortOrder = "desc",
+  } = req.query;
+
+  const pageNum = Number(page);
+  const limitNum = Number(limit);
+  const skip = (page - 1) * limit;
+
   const products = await Product.aggregate([
     {
       $match: {
@@ -47,6 +59,14 @@ export const getAllProducts = asyncHandler(async (req, res) => {
       $unwind: "$shopkeeper"
     },
     {
+      $sort: {
+        [sortKey]: sortOrder === "asc" ? 1 : -1
+      }
+    },
+    { $skip: skip },
+    { $limit: limitNum},
+
+    {
       $project: {
         name: 1,
         description: 1,
@@ -60,6 +80,7 @@ export const getAllProducts = asyncHandler(async (req, res) => {
       }
     }
   ]);
+  
   return res
     .status(200)
     .json(new ApiResponse(200, products, "Products fetched successfully"));
