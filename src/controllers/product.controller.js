@@ -28,7 +28,10 @@ export const createProduct = asyncHandler(async (req, res) => {
 
 // Get All Products
 export const getAllProducts = asyncHandler(async (req, res) => {
-  const products = await Product.find().populate("shopkeeper", "name email");
+  const products = await Product.find({
+    isActive: true,
+    isDelete: false,
+  }).populate("shopkeeper", "name email");
 
   return res
     .status(200)
@@ -37,7 +40,11 @@ export const getAllProducts = asyncHandler(async (req, res) => {
 
 // Get Single Product
 export const getSingleProduct = asyncHandler(async (req, res) => {
-  const product = await Product.findById(req.params.id);
+  const product = await Product.findOne({
+    _id: req.params.id,
+    isActive: true,
+    isDelete: false,
+  });
 
   if (!product) {
     throw new ApiError(404, "Product not found");
