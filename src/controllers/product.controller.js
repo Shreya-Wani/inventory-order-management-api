@@ -37,7 +37,8 @@ export const getAllProducts = asyncHandler(async (req, res) => {
     name,
     minPrice,
     maxPrice,
-    shopkeeper
+    shopkeeper,
+    search
   } = req.query;
 
   const pageNum = Number(page);
@@ -61,6 +62,14 @@ export const getAllProducts = asyncHandler(async (req, res) => {
     matchStage.price = {};
     if (minPrice) matchStage.price.$gte = Number(minPrice);
     if (maxPrice) matchStage.price.$lte = Number(maxPrice);
+  }
+
+  //search
+  if (search) {
+    matchStage.$or = [
+      { name: { $regex: search, $options: "i"} },
+      { description: { $regex: search, $options: "i"} }
+    ]
   }
 
   const products = await Product.aggregate([
