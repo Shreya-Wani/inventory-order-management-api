@@ -34,19 +34,37 @@ export const getAllProducts = asyncHandler(async (req, res) => {
     limit = 5,
     sortKey = "createdAt",
     sortOrder = "desc",
+    name,
+    minPrice,
+    maxPrice,
+    shopkeeper
   } = req.query;
 
   const pageNum = Number(page);
   const limitNum = Number(limit);
-  const skip = (page - 1) * limit;
+  const skip = (pageNum - 1) * limitNum;
+
+  let matchStage = {
+    isActive: true,
+    isDelete: false,
+  };
+
+  //multi-value name filter
+  if (name) {
+    matchStage.name = {
+      $in: name.split(",")
+    };
+  }
+
+  //price range filter
+  if (minPrice || maxPrice) {
+    matchStage.price = {};
+    if (minPrice) matchStage.price.$gte = Number(minPrice);
+    if (maxPrice) matchStage.price.$lte = Number(maxPrice);
+  }
 
   const products = await Product.aggregate([
-    {
-      $match: {
-        isActive: true,
-        isDelete: false,
-      }
-    },
+    { $match: matchStage },
     {
       $lookup: {
         from: "users",
@@ -64,7 +82,7 @@ export const getAllProducts = asyncHandler(async (req, res) => {
       }
     },
     { $skip: skip },
-    { $limit: limitNum},
+    { $limit: limitNum },
 
     {
       $project: {
@@ -80,7 +98,7 @@ export const getAllProducts = asyncHandler(async (req, res) => {
       }
     }
   ]);
-  
+
   return res
     .status(200)
     .json(new ApiResponse(200, products, "Products fetched successfully"));
