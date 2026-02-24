@@ -67,12 +67,12 @@ export const getAllProducts = asyncHandler(async (req, res) => {
   //search
   if (search) {
     matchStage.$or = [
-      { name: { $regex: search, $options: "i"} },
-      { description: { $regex: search, $options: "i"} }
+      { name: { $regex: search, $options: "i" } },
+      { description: { $regex: search, $options: "i" } }
     ]
   }
 
-  const products = await Product.aggregate([
+  const productsResult = await Product.aggregate([
     { $match: matchStage },
     {
       $lookup: {
@@ -86,31 +86,48 @@ export const getAllProducts = asyncHandler(async (req, res) => {
       $unwind: "$shopkeeper"
     },
     {
-      $sort: {
-        [sortKey]: sortOrder === "asc" ? 1 : -1
-      }
-    },
-    { $skip: skip },
-    { $limit: limitNum },
-
-    {
-      $project: {
-        name: 1,
-        description: 1,
-        price: 1,
-        stock: 1,
-        createdAt: 1,
-        updatedAt: 1,
-        "shopkeeper._id": 1,
-        "shopkeeper.name": 1,
-        "shopkeeper.email": 1
+      $facet: {
+        data: [
+          {
+            $sort: {
+              [sortKey]: sortOrder === "asc" ? 1 : -1
+            }
+          },
+          { $skip: skip },
+          { $limit: limitNum },
+          {
+            $project: {
+              name: 1,
+              description: 1,
+              price: 1,
+              stock: 1,
+              createdAt: 1,
+              updatedAt: 1,
+              "shopkeeper._id": 1,
+              "shopkeeper.name": 1,
+              "shopkeeper.email": 1
+            }
+          }
+        ],
+        totalCount: [
+          { $count: "count" }
+        ]
       }
     }
-  ]);
+]);
 
-  return res
-    .status(200)
-    .json(new ApiResponse(200, products, "Products fetched successfully"));
+
+  const data = productsResult[0].data;
+  const total = productsResult[0].totalCount[0]?.count || 0;
+
+  return res.status(200).json(
+    new ApiResponse(200, {
+      total,
+      page: pageNum,
+      limit: limitNum,
+      data
+    },"Products fetched successfully")
+  );
 });
 
 // Get Single Product
