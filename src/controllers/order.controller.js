@@ -112,40 +112,100 @@ export const createOrder = asyncHandler(async (req, res) => {
   }
 });
 
-//Get Orders
 export const getOrders = asyncHandler(async (req, res) => {
 
-  let orders;
+  const {
+    page = 1,
+    limit = 5,
+    sortKey = "createdAt",
+    sortOrder = "desc"
+  } = req.query;
 
+  const pageNum = Number(page);
+  const limitNum = Number(limit);
+  const skip = (pageNum - 1) * limitNum;
+
+  let matchStage = {
+    isActive: true,
+    isDelete: false,
+  };
+
+  // Customer sees only their orders
   if (req.user.role === "customer") {
-    // Customer sees only their orders
-    orders = await Order.find({
-      customer: req.user._id,
-      isActive: true,
-      isDelete: false,
-    })
-      .populate("items.product")
-      .sort({ createdAt: -1 });
-
-  } else if (req.user.role === "shopkeeper") {
-    // Shopkeeper sees orders containing their products
-    orders = await Order.find({
-      isActive: true,
-      isDelete: false,
-    })
-      .populate("items.product")
-      .sort({ createdAt: -1 });
-
-    orders = orders.filter(order =>
-      order.items.some(item =>
-        item.product.shopkeeper.toString() === req.user._id.toString()
-      )
-    );
+    matchStage.customer = req.user._id;
   }
 
-  return res
-    .status(200)
-    .json(new ApiResponse(200, orders, "Orders fetched successfully"));
+  const ordersResult = await Order.aggregate([
+
+    { $match: matchStage },
+
+    // Unwind items array
+    { $unwind: "$items" },
+
+    // Lookup product inside each item
+    {
+      $lookup: {
+        from: "products",
+        localField: "items.product",
+        foreignField: "_id",
+        as: "items.product"
+      }
+    },
+
+    { $unwind: "$items.product" },
+
+    // Shopkeeper filtering
+    ...(req.user.role === "shopkeeper"
+      ? [{
+          $match: {
+            "items.product.shopkeeper": req.user._id
+          }
+        }]
+      : []),
+
+    // Regroup order after unwind
+    {
+      $group: {
+        _id: "$_id",
+        customer: { $first: "$customer" },
+        totalAmount: { $first: "$totalAmount" },
+        status: { $first: "$status" },
+        createdAt: { $first: "$createdAt" },
+        updatedAt: { $first: "$updatedAt" },
+        items: { $push: "$items" }
+      }
+    },
+
+    {
+      $facet: {
+        data: [
+          {
+            $sort: {
+              [sortKey]: sortOrder === "asc" ? 1 : -1
+            }
+          },
+          { $skip: skip },
+          { $limit: limitNum }
+        ],
+        totalCount: [
+          { $count: "count" }
+        ]
+      }
+    }
+
+  ]);
+
+  const data = ordersResult[0].data;
+  const total = ordersResult[0].totalCount[0]?.count || 0;
+
+  return res.status(200).json(
+    new ApiResponse(200, {
+      total,
+      page: pageNum,
+      limit: limitNum,
+      data
+    }, "Orders fetched successfully")
+  );
 });
 
 //get single order
